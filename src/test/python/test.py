@@ -7,7 +7,7 @@ import unittest
 import os
 
 from icat import ICAT
-from vicat import VICAT
+from vicat import VICAT, VicatException
 
 
 class Test(unittest.TestCase):
@@ -23,10 +23,10 @@ class Test(unittest.TestCase):
         facility = {}
         facility["name"] = "LSF"
         entity = {"Facility":facility}
-        fid = self.session.write(entity)[0]
+        self.fid = self.session.write(entity)[0]
         
         investigationType = {}
-        investigationType["facility"] = {"id":fid}
+        investigationType["facility"] = {"id":self.fid}
         investigationType["name"] = "E"
         entity = {"InvestigationType" : investigationType}
         itid = self.session.write(entity)[0]
@@ -34,7 +34,7 @@ class Test(unittest.TestCase):
         entities = []
         for name in ["Inv 1"]:
             investigation = {}
-            investigation["facility"] = {"id":fid}
+            investigation["facility"] = {"id":self.fid}
             investigation["type"] = {"id":itid}
             investigation["name"] = name
             investigation["title"] = "The " + name
@@ -42,7 +42,7 @@ class Test(unittest.TestCase):
             entities.append({"Investigation": investigation})
         self.session.write(entities)
         
-        datasetType = {"name" :"DS Type", "facility" : {"id":fid}}
+        datasetType = {"name" :"DS Type", "facility" : {"id":self.fid}}
         entity = {"DatasetType" : datasetType}
         self.session.write(entity)
         
@@ -54,15 +54,13 @@ class Test(unittest.TestCase):
         entity = {"Dataset" : dataset}
         self.datasetId = self.session.write(entity)[0]
         
-        # Create a VICAT instance
-        self.vicat = VICAT(self.session)
-        
 
     def tearDown(self):
         # We could delete the Facility we created; but it's useful to be able to inspect it after the last test.
         pass
 
-    def testCreateVersion(self):
+    def test01CreateVersion(self):
+        self.vicat = VICAT(self.session)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2")
         # The new dataset should be new
         self.assertNotEqual(self.datasetId,newdsid)
@@ -86,6 +84,23 @@ class Test(unittest.TestCase):
                     found = True
             self.assertTrue(found)
 
+    def test02Branching(self):
+        self.vicat = VICAT(self.session,self.fid,True)
+        newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
+        # We should be able to create a second version of the same dataset
+        newdsid2 = self.vicat.createVersion(self.datasetId,"ds1_v2.2")
+        self.assertNotEqual(newdsid,newdsid2)
+    
+    def test03NoBranching(self):
+        self.vicat = VICAT(self.session,self.fid,False)
+        newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
+        # We should NOT be able to create a second version of the same dataset
+        try:
+            newdsid2 = self.vicat.createVersion(self.datasetId,"ds1_v2.2")
+            self.fail("allowed second version of same dataset")
+        except VicatException as ve:
+            # Check that the exception is the expected one!
+            self.assertEquals(VicatException.BRANCHING_NOT_PERMITTED, ve.getType())
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testCreateVersion']
