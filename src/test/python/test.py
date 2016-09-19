@@ -101,6 +101,46 @@ class Test(unittest.TestCase):
         except VicatException as ve:
             # Check that the exception is the expected one!
             self.assertEquals(VicatException.BRANCHING_NOT_PERMITTED, ve.getType())
+    
+    def test04SupersededNone(self):
+        self.vicat = VICAT(self.session,self.fid,False)
+        self.assertIsNone(self.vicat.superseded(self.datasetId))
+    
+    def test05SupersededOK(self):
+        self.vicat = VICAT(self.session,self.fid,False)
+        newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
+        self.assertEquals(newdsid,self.vicat.superseded(self.datasetId))
+    
+    def test06SupersededNotOK(self):
+        self.vicat = VICAT(self.session,self.fid,True)
+        newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
+        try:
+            dsid2 = self.vicat.superseded(self.datasetId)
+            self.fail("Allowed to ask for descendant when branching is permitted")
+        except VicatException as ve:
+            self.assertEquals(VicatException.BRANCHING_PERMITTED, ve.getType())
+
+    def test07SupersededNotOK(self):
+        self.vicat = VICAT(self.session,self.fid,True)
+        newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
+        # Naughty: create a new VICAT instance on this facility that assumes branching is not permitted
+        self.vicat = VICAT(self.session,self.fid,False)
+        try:
+            dsid2 = self.vicat.superseded(self.datasetId)
+            self.fail("Allowed to ask for descendant when branching had been permitted originally")
+        except VicatException as ve:
+            self.assertEquals(VicatException.BRANCHING_PERMITTED, ve.getType())
+    
+    def test08History(self):
+        self.vicat = VICAT(self.session,self.fid,False)
+        self.assertEquals([],self.vicat.ancestors(self.datasetId))
+        self.assertEquals([],self.vicat.descendants(self.datasetId))
+        newdsid1 = self.vicat.createVersion(self.datasetId,"ds1_v2")
+        newdsid2 = self.vicat.createVersion(newdsid1,"ds1_v3")
+        self.assertEquals([self.datasetId,newdsid1],self.vicat.ancestors(newdsid2))
+        self.assertEquals([newdsid1,newdsid2], self.vicat.descendants(self.datasetId))
+        self.assertEquals([self.datasetId],self.vicat.ancestors(newdsid1))
+        self.assertEquals([newdsid2], self.vicat.descendants(newdsid1))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testCreateVersion']

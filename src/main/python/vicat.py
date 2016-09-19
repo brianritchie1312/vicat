@@ -14,6 +14,8 @@ class VicatException(Exception):
     NO_FACILITY = "NO_FACILITY"
     # Attempt to branch versions when branching is not permitted
     BRANCHING_NOT_PERMITTED = "BRANCHING_NOT_PERMITTED"
+    # Attempt to use a non-branching operation when branching is in effect
+    BRANCHING_PERMITTED = "BRANCHING_PERMITTED"
     
     def __init__(self, code, message, offset=-1):
         """
@@ -118,7 +120,12 @@ class VICAT(object):
             raise VicatException(VicatException.BRANCHING_NOT_PERMITTED,"Attempt to create second version of dataset " + str(datasetId) + " when branching is not allowed.")
         
         newdsid = self.session.cloneEntity("Dataset", datasetId, {"name": newName })
-        # Add 'supersedes' dataset parameter
+        # Add 'supersedes' dataset parameter, or replace it (if the original was already a version dataset)
+        ssParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(newdsid)+" AND dp.type.id="+str(self.supersedesPT))
+        if len(ssParams) != 0:
+            supersedesParamId = ssParams[0]
+            entity = {"DatasetParameter" : {"id" : supersedesParamId}}
+            self.session.delete(entity)
         supersedesParam = {"dataset" : {"id" : newdsid}, "type" : {"id" : self.supersedesPT}, "numericValue" : datasetId}
         entity = {"DatasetParameter" : supersedesParam}
         self.session.write(entity)
@@ -143,6 +150,27 @@ class VICAT(object):
         sdParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(datasetId)+" AND dp.type.id="+str(self.supersededPT))
         return len(sdParams) > 0
     
+    def superseded(self, datasetId):
+        """
+        Return the dataset id of the dataset, if any, that is the next newest version of the given dataset.
+        If there is no newer version, return None.
+        If branching is permitted, this raises an exception.
+        """
+        if self.branching:
+            raise VicatException(VicatException.BRANCHING_PERMITTED,"Attempt to obtain single descendant from dataset " + str(datasetId) + " when branching is permitted")
+
+        sdParams = self.session.search("SELECT dp.id, dp.numericValue FROM DatasetParameter dp WHERE dp.dataset.id="+str(datasetId)+" AND dp.type.id="+str(self.supersededPT))
+        if len(sdParams) == 0:
+            return None
+        else:
+            sdVal = sdParams[0][1]
+            # Secondary guard: this instance may not believe branching is permitted,
+            # but it may have been allowed in the past - note different error message!
+            if sdVal == 0:
+                raise VicatException(VicatException.BRANCHING_PERMITTED,"Attempt to obtain single descendant from dataset " + str(datasetId) + " that was superseded when branching was permitted")
+            else:
+                return sdVal
+    
     def supersedes(self, datasetId):
         '''
         If this dataset is a new version, return the datasetId of the dataset it (immediately) supersedes.
@@ -153,4 +181,28 @@ class VICAT(object):
             return None
         else:
             return ssParams[0][1]
+
+    def ancestors(self, datasetId):
+        """
+        Returns a list of ancestors (previous versions) of the given datasetId.
+        """
+        parent = self.supersedes(datasetId)
+        if parent is not None:
+            return self.ancestors(parent) + [parent]
+        else:
+            return []
+    
+    def descendants(self, datasetId):
+        """
+        Returns a list of descendants (newer versions) of the given datasetId.
+        This operation is not permitted when branching is in effect.
+        """
+        if self.branching:
+            raise VicatException(VicatException.BRANCHING_PERMITTED,"Attempt to obtain descendants from dataset " + str(datasetId) + " when branching is permitted")
+        child = self.superseded(datasetId)
+        if child is not None:
+            return [child] + self.descendants(child)
+        else:
+            return []
+
 
