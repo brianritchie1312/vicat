@@ -120,6 +120,15 @@ class VICAT(object):
             raise VicatException(VicatException.BRANCHING_NOT_PERMITTED,"Attempt to create second version of dataset " + str(datasetId) + " when branching is not allowed.")
         
         newdsid = self.session.cloneEntity("Dataset", datasetId, {"name": newName })
+        
+        # Subtle point: if branching is allowed, after the first version there will be a 'superseded' parameter,
+        # which must be removed from this clone
+        sdParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(newdsid)+" AND dp.type.id="+str(self.supersededPT))
+        if len(sdParams) != 0:
+            supersededParamId = sdParams[0]
+            entity = {"DatasetParameter" : {"id" : supersededParamId}}
+            self.session.delete(entity)
+        
         # Add 'supersedes' dataset parameter, or replace it (if the original was already a version dataset)
         ssParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(newdsid)+" AND dp.type.id="+str(self.supersedesPT))
         if len(ssParams) != 0:

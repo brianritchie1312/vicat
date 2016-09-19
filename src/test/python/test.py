@@ -68,6 +68,8 @@ class Test(unittest.TestCase):
         self.assertEquals(self.datasetId,self.vicat.supersedes(newdsid))
         # The old dataset should have the superseded parameter set
         self.assertTrue(self.vicat.isSuperseded(self.datasetId))
+        # ... and the new one should not
+        self.assertFalse(self.vicat.isSuperseded(newdsid))
         # The old and new datasets should have the same number of datafiles
         oldfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(self.datasetId))
         newfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(newdsid))
@@ -90,6 +92,8 @@ class Test(unittest.TestCase):
         # We should be able to create a second version of the same dataset
         newdsid2 = self.vicat.createVersion(self.datasetId,"ds1_v2.2")
         self.assertNotEqual(newdsid,newdsid2)
+        # This is a more subtle test: newdsid2 should NOT inherit datasetId's 'superseded' parameter
+        self.assertFalse(self.vicat.isSuperseded(newdsid2))
     
     def test03NoBranching(self):
         self.vicat = VICAT(self.session,self.fid,False)
@@ -141,6 +145,14 @@ class Test(unittest.TestCase):
         self.assertEquals([newdsid1,newdsid2], self.vicat.descendants(self.datasetId))
         self.assertEquals([self.datasetId],self.vicat.ancestors(newdsid1))
         self.assertEquals([newdsid2], self.vicat.descendants(newdsid1))
+    
+    def test09SupersededTrail(self):
+        self.vicat = VICAT(self.session,self.fid,False)
+        newdsid1 = self.vicat.createVersion(self.datasetId,"ds1_v2")
+        newdsid2 = self.vicat.createVersion(newdsid1,"ds1_v3")
+        self.assertTrue(self.vicat.isSuperseded(self.datasetId))
+        self.assertTrue(self.vicat.isSuperseded(newdsid1))
+        self.assertFalse(self.vicat.isSuperseded(newdsid2))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testCreateVersion']
