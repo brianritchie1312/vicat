@@ -65,7 +65,7 @@ class Test(unittest.TestCase):
         # The new dataset should be new
         self.assertNotEqual(self.datasetId,newdsid)
         # The new dataset should have the supersedes parameter set
-        self.assertEquals(self.datasetId,self.vicat.supersedes(newdsid))
+        self.assertEqual(self.datasetId,self.vicat.supersedes(newdsid))
         # The old dataset should have the superseded parameter set
         self.assertTrue(self.vicat.isSuperseded(self.datasetId))
         # ... and the new one should not
@@ -73,7 +73,7 @@ class Test(unittest.TestCase):
         # The old and new datasets should have the same number of datafiles
         oldfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(self.datasetId))
         newfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(newdsid))
-        self.assertEquals(len(oldfiles),len(newfiles))
+        self.assertEqual(len(oldfiles),len(newfiles))
         # Each datafile in the old dataset should have a corresponding new datafile in the new dataset
         for oldfile in oldfiles:
             found = False
@@ -82,7 +82,7 @@ class Test(unittest.TestCase):
                 self.assertNotEquals(oldfile[0],newfile[0])
                 if oldfile[1] == newfile[1]:
                     # Locations should match
-                    self.assertEquals(oldfile[2],newfile[2])
+                    self.assertEqual(oldfile[2],newfile[2])
                     found = True
             self.assertTrue(found)
 
@@ -99,12 +99,9 @@ class Test(unittest.TestCase):
         self.vicat = VICAT(self.session,self.fid,False)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
         # We should NOT be able to create a second version of the same dataset
-        try:
+        with self.assertRaises(VicatException) as cm:
             newdsid2 = self.vicat.createVersion(self.datasetId,"ds1_v2.2")
-            self.fail("allowed second version of same dataset")
-        except VicatException as ve:
-            # Check that the exception is the expected one!
-            self.assertEquals(VicatException.BRANCHING_NOT_PERMITTED, ve.getType())
+        self.assertEqual(VicatException.BRANCHING_NOT_PERMITTED, cm.exception.getType())
     
     def test04SupersededNone(self):
         self.vicat = VICAT(self.session,self.fid,False)
@@ -113,38 +110,34 @@ class Test(unittest.TestCase):
     def test05SupersededOK(self):
         self.vicat = VICAT(self.session,self.fid,False)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
-        self.assertEquals(newdsid,self.vicat.superseded(self.datasetId))
+        self.assertEqual(newdsid,self.vicat.superseded(self.datasetId))
     
     def test06SupersededNotOK(self):
         self.vicat = VICAT(self.session,self.fid,True)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
-        try:
+        with self.assertRaises(VicatException) as cm:
             dsid2 = self.vicat.superseded(self.datasetId)
-            self.fail("Allowed to ask for descendant when branching is permitted")
-        except VicatException as ve:
-            self.assertEquals(VicatException.BRANCHING_PERMITTED, ve.getType())
+        self.assertEqual(VicatException.BRANCHING_PERMITTED, cm.exception.getType())
 
     def test07SupersededNotOK(self):
         self.vicat = VICAT(self.session,self.fid,True)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
         # Naughty: create a new VICAT instance on this facility that assumes branching is not permitted
         self.vicat = VICAT(self.session,self.fid,False)
-        try:
+        with self.assertRaises(VicatException) as cm:
             dsid2 = self.vicat.superseded(self.datasetId)
-            self.fail("Allowed to ask for descendant when branching had been permitted originally")
-        except VicatException as ve:
-            self.assertEquals(VicatException.BRANCHING_PERMITTED, ve.getType())
+        self.assertEqual(VicatException.BRANCHING_PERMITTED, cm.exception.getType())
     
     def test08History(self):
         self.vicat = VICAT(self.session,self.fid,False)
-        self.assertEquals([],self.vicat.ancestors(self.datasetId))
-        self.assertEquals([],self.vicat.descendants(self.datasetId))
+        self.assertEqual([],self.vicat.ancestors(self.datasetId))
+        self.assertEqual([],self.vicat.descendants(self.datasetId))
         newdsid1 = self.vicat.createVersion(self.datasetId,"ds1_v2")
         newdsid2 = self.vicat.createVersion(newdsid1,"ds1_v3")
-        self.assertEquals([self.datasetId,newdsid1],self.vicat.ancestors(newdsid2))
-        self.assertEquals([newdsid1,newdsid2], self.vicat.descendants(self.datasetId))
-        self.assertEquals([self.datasetId],self.vicat.ancestors(newdsid1))
-        self.assertEquals([newdsid2], self.vicat.descendants(newdsid1))
+        self.assertEqual([self.datasetId,newdsid1],self.vicat.ancestors(newdsid2))
+        self.assertEqual([newdsid1,newdsid2], self.vicat.descendants(self.datasetId))
+        self.assertEqual([self.datasetId],self.vicat.ancestors(newdsid1))
+        self.assertEqual([newdsid2], self.vicat.descendants(newdsid1))
     
     def test09SupersededTrail(self):
         self.vicat = VICAT(self.session,self.fid,False)
