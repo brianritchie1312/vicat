@@ -121,8 +121,19 @@ class VICAT(object):
         
         newdsid = self.session.cloneEntity("Dataset", datasetId, {"name": newName })
         
-        # Subtle point: if branching is allowed, after the first version there will be a 'superseded' parameter,
-        # which must be removed from this clone
+        # Add 'superseded' parameter to original dataset,
+        # if it's not there already
+        if len(sdParams) == 0:
+            if self.branching:
+                supersededValue = 0
+            else:
+                supersededValue = newdsid
+            supersededParam = {"dataset" : {"id" : datasetId}, "type" : {"id" : self.supersededPT}, "numericValue" : supersededValue}
+            entity = {"DatasetParameter" : supersededParam}
+            self.session.write(entity)
+        
+        # Subtle point: if branching is allowed, after the first version there will be a 'superseded' parameter in this clone,
+        # which must be removed
         sdParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(newdsid)+" AND dp.type.id="+str(self.supersededPT))
         if len(sdParams) != 0:
             supersededParamId = sdParams[0]
@@ -139,17 +150,6 @@ class VICAT(object):
         entity = {"DatasetParameter" : supersedesParam}
         self.session.write(entity)
 
-        # Add 'superseded' parameter to original dataset,
-        # if it's not there already
-        if len(sdParams) == 0:
-            if self.branching:
-                supersededValue = 0
-            else:
-                supersededValue = newdsid
-            supersededParam = {"dataset" : {"id" : datasetId}, "type" : {"id" : self.supersededPT}, "numericValue" : supersededValue}
-            entity = {"DatasetParameter" : supersededParam}
-            self.session.write(entity)
-        
         return newdsid
 
     def isSuperseded(self, datasetId):
