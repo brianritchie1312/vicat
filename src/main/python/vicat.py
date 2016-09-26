@@ -62,16 +62,19 @@ class VICAT(object):
         If the facilityId is not specified, look for a Facility called LSF
         (which must exist).
         If the branching flag is set to False (the default), then each dataset can have
-        no more than one direct version, and version histories will be linear.
-        An attempt to create a second version from a dataset will raise an exception.
+        no more than one direct version, and version histories will be linear;
+        an attempt to create a second version from a dataset will raise an exception.
         If the branching flag is set to True, then multiple direct versions of the same
         dataset will be allowed, and version histories need no longer be linear. In this
         case, a dataset may not have a single "latest" version, and an attempt to request
         this will raise an exception.
-        WARNING: the branching property is persistent for the chosen Facility. The consequences
-        of creating a VICAT instance with branching=False on a Facility where branching
-        has been True previously are unpredictable.
-        Versioning uses two dataset parameters, "superseded" and "supersedes";
+        WARNING: the branching property is persistent for the chosen Facility, but it is not
+        (directly) recorded. (A pragmatic test would be to look for any datasets where the
+        "vicat:superseded" parameter (see below) has been set to 0; this would indicate that branching
+        has been True.)
+        The consequences of creating a VICAT instance with branching=False on 
+        a Facility where branching has been True previously are unpredictable.
+        Versioning uses three dataset parameters, "vicat:superseded", "vicat:supersedes" and "vicat:comment";
         these will be created on the Facility if they do not already exist.
         '''
         self.session = session
