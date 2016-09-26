@@ -52,8 +52,8 @@ class VICAT(object):
     '''
 
     # Names of the versioning ParameterTypes
-    SUPERSEDED = "superseded"
-    SUPERSEDES = "supersedes"
+    SUPERSEDED = "vicat:superseded"
+    SUPERSEDES = "vicat:supersedes"
 
     def __init__(self, session, facilityId = None, branching = False):
         '''
@@ -113,9 +113,38 @@ class VICAT(object):
             entity = {"ParameterType" : ssParamType }
             self.supersedesPT = self.session.write(entity)[0]
 
+    def _findParam(self, datasetId, paramTypeId, valueTypeField=None):
+        """
+        Find and return a list of any ids of (Dataset)Parameters of the given type for the given dataset.
+        If valueTypeField is not None, add it to the selectors; in this case, each list element will
+        be a list containing the id and the value of the named field.
+        """
+        selectors = "dp.id"
+        if valueTypeField is not None:
+            selectors += ", dp." + valueTypeField
+        return self.session.search("SELECT " + selectors + " FROM DatasetParameter dp WHERE dp.dataset.id="+str(datasetId)+" AND dp.type.id="+str(paramTypeId))
+    
+    def _addOrUpdateParameter(self, datasetId, paramTypeId, paramValue=None, valueTypeField="numericValue"):
+        """
+        If the given dataset already has an instance of the paramType, delete it first.
+        Create an instance of paramType for the given dataset with the given value.
+        If paramValue is None, then any existing parameter will be deleted, but no
+        new value will be created.
+        The valueTypeField must match that expected for the given paramType.
+        """
+        params = self._findParam(datasetId, paramTypeId)
+        if len(params) != 0:
+            paramId = params[0]
+            entity = {"DatasetParameter" : {"id" : paramId}}
+            self.session.delete(entity)
+        if paramValue is not None:
+            newParam = {"dataset" : {"id" : datasetId}, "type" : {"id" : paramTypeId}, valueTypeField : paramValue}
+            entity = {"DatasetParameter" : newParam}
+            self.session.write(entity)
+
     def createVersion(self, datasetId, newName):
         # Check whether the dataset already has a newer version
-        sdParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(datasetId)+" AND dp.type.id="+str(self.supersededPT))
+        sdParams = self._findParam(datasetId, self.supersededPT)
         if len(sdParams) != 0 and not self.branching:
             raise VicatException(VicatException.BRANCHING_NOT_PERMITTED,"Attempt to create second version of dataset " + str(datasetId) + " when branching is not allowed.")
         
@@ -134,21 +163,10 @@ class VICAT(object):
         
         # Subtle point: if branching is allowed, after the first version there will be a 'superseded' parameter in this clone,
         # which must be removed
-        sdParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(newdsid)+" AND dp.type.id="+str(self.supersededPT))
-        if len(sdParams) != 0:
-            supersededParamId = sdParams[0]
-            entity = {"DatasetParameter" : {"id" : supersededParamId}}
-            self.session.delete(entity)
+        self._addOrUpdateParameter(newdsid, self.supersededPT)
         
         # Add 'supersedes' dataset parameter, or replace it (if the original was already a version dataset)
-        ssParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(newdsid)+" AND dp.type.id="+str(self.supersedesPT))
-        if len(ssParams) != 0:
-            supersedesParamId = ssParams[0]
-            entity = {"DatasetParameter" : {"id" : supersedesParamId}}
-            self.session.delete(entity)
-        supersedesParam = {"dataset" : {"id" : newdsid}, "type" : {"id" : self.supersedesPT}, "numericValue" : datasetId}
-        entity = {"DatasetParameter" : supersedesParam}
-        self.session.write(entity)
+        self._addOrUpdateParameter(newdsid, self.supersedesPT, datasetId)
 
         return newdsid
 
@@ -156,7 +174,7 @@ class VICAT(object):
         '''
         True if one or more new versions have been created from this Dataset
         '''
-        sdParams = self.session.search("SELECT dp.id FROM DatasetParameter dp WHERE dp.dataset.id="+str(datasetId)+" AND dp.type.id="+str(self.supersededPT))
+        sdParams = self._findParam(datasetId, self.supersededPT)
         return len(sdParams) > 0
     
     def superseded(self, datasetId):
@@ -168,7 +186,7 @@ class VICAT(object):
         if self.branching:
             raise VicatException(VicatException.BRANCHING_PERMITTED,"Attempt to obtain single descendant from dataset " + str(datasetId) + " when branching is permitted")
 
-        sdParams = self.session.search("SELECT dp.id, dp.numericValue FROM DatasetParameter dp WHERE dp.dataset.id="+str(datasetId)+" AND dp.type.id="+str(self.supersededPT))
+        sdParams = self._findParam(datasetId, self.supersededPT, "numericValue")
         if len(sdParams) == 0:
             return None
         else:
@@ -185,7 +203,7 @@ class VICAT(object):
         If this dataset is a new version, return the datasetId of the dataset it (immediately) supersedes.
         If it is not a version, return None
         '''
-        ssParams = self.session.search("SELECT dp.id, dp.numericValue FROM DatasetParameter dp WHERE dp.dataset.id="+str(datasetId)+" AND dp.type.id="+str(self.supersedesPT))
+        ssParams = self._findParam(datasetId, self.supersedesPT, "numericValue")
         if len(ssParams) == 0:
             return None
         else:

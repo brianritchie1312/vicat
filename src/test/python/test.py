@@ -68,6 +68,7 @@ class Test(unittest.TestCase):
         self.assertEqual(self.datasetId,self.vicat.supersedes(newdsid))
         # The old dataset should have the superseded parameter set
         self.assertTrue(self.vicat.isSuperseded(self.datasetId))
+        self.assertEqual(newdsid, self.vicat.superseded(self.datasetId))
         # ... and the new one should not
         self.assertFalse(self.vicat.isSuperseded(newdsid))
         # The old and new datasets should have the same number of datafiles
