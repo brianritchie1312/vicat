@@ -54,6 +54,7 @@ class VICAT(object):
     # Names of the versioning ParameterTypes
     SUPERSEDED = "vicat:superseded"
     SUPERSEDES = "vicat:supersedes"
+    COMMENT = "vicat:comment"
 
     def __init__(self, session, facilityId = None, branching = False):
         '''
@@ -112,6 +113,19 @@ class VICAT(object):
                 "units" : "N/A"}
             entity = {"ParameterType" : ssParamType }
             self.supersedesPT = self.session.write(entity)[0]
+        
+        pts = self.session.search("SELECT pt.id FROM ParameterType pt WHERE pt.facility.id = " + str(self.fid) + " AND pt.name = '" + self.COMMENT + "'")
+        if pts and len(pts) > 0:
+            self.commentPT = pts[0]
+        else:
+            commentParamType = {"name" : self.COMMENT,
+                "facility" : {"id" : self.fid},
+                "valueType" : "STRING",
+                "description" : "documents reason for creation of this version of the given datasetId",
+                "applicableToDataset" : True,
+                "units" : "N/A"}
+            entity = {"ParameterType" : commentParamType }
+            self.commentPT = self.session.write(entity)[0]
 
     def _findParam(self, datasetId, paramTypeId, valueTypeField=None):
         """
@@ -142,7 +156,12 @@ class VICAT(object):
             entity = {"DatasetParameter" : newParam}
             self.session.write(entity)
 
-    def createVersion(self, datasetId, newName):
+    def createVersion(self, datasetId, newName, versionComment=None):
+        """
+        Create a new version of the given dataset, using the new name.
+        Returns the id of the new dataset.
+        versionComment can be used to document the reason for the new version.
+        """
         # Check whether the dataset already has a newer version
         sdParams = self._findParam(datasetId, self.supersededPT)
         if len(sdParams) != 0 and not self.branching:
@@ -167,6 +186,9 @@ class VICAT(object):
         
         # Add 'supersedes' dataset parameter, or replace it (if the original was already a version dataset)
         self._addOrUpdateParameter(newdsid, self.supersedesPT, datasetId)
+        
+        # Add the version comment (or remove any comment left over from the original clone
+        self._addOrUpdateParameter(newdsid, self.commentPT, versionComment, "stringValue")
 
         return newdsid
 
@@ -232,4 +254,14 @@ class VICAT(object):
         else:
             return []
 
+    def versionComment(self,datasetId):
+        """
+        Return the version comment for the given datasetId, if it has one
+        """
+        sdParams = self._findParam(datasetId, self.commentPT, "stringValue")
+        if len(sdParams) == 0:
+            return None
+        else:
+            return sdParams[0][1]
+        
 

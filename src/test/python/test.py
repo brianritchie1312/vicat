@@ -147,6 +147,22 @@ class Test(unittest.TestCase):
         self.assertTrue(self.vicat.isSuperseded(self.datasetId))
         self.assertTrue(self.vicat.isSuperseded(newdsid1))
         self.assertFalse(self.vicat.isSuperseded(newdsid2))
+    
+    def test10NoVersionComment(self):
+        self.vicat = VICAT(self.session,self.fid,False)
+        self.assertIsNone(self.vicat.versionComment(self.datasetId))
+        newdsid1 = self.vicat.createVersion(self.datasetId,"ds1_v2")
+        self.assertIsNone(self.vicat.versionComment(newdsid1))
+
+    def test11VersionComment(self):
+        self.vicat = VICAT(self.session,self.fid,False)
+        comment = "This version has a comment"
+        newdsid1 = self.vicat.createVersion(self.datasetId,"ds1_v2", comment)
+        self.assertEqual(comment, self.vicat.versionComment(newdsid1))
+        # ... but the comment should not be copied to a subsequent version,
+        # even if none is specified
+        newdsid2 = self.vicat.createVersion(newdsid1,"ds1_v3")
+        self.assertIsNone(self.vicat.versionComment(newdsid2))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testCreateVersion']
