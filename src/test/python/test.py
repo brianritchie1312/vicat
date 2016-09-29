@@ -86,7 +86,7 @@ class Test(unittest.TestCase):
                     self.assertEqual(oldfile[2],newfile[2])
                     found = True
             self.assertTrue(found)
-
+ 
     def test02Branching(self):
         self.vicat = VICAT(self.session,self.fid,True)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
@@ -95,7 +95,7 @@ class Test(unittest.TestCase):
         self.assertNotEqual(newdsid,newdsid2)
         # This is a more subtle test: newdsid2 should NOT inherit datasetId's 'superseded' parameter
         self.assertFalse(self.vicat.isSuperseded(newdsid2))
-    
+     
     def test03NoBranching(self):
         self.vicat = VICAT(self.session,self.fid,False)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
@@ -103,23 +103,23 @@ class Test(unittest.TestCase):
         with self.assertRaises(VicatException) as cm:
             newdsid2 = self.vicat.createVersion(self.datasetId,"ds1_v2.2")
         self.assertEqual(VicatException.BRANCHING_NOT_PERMITTED, cm.exception.getType())
-    
+     
     def test04SupersededNone(self):
         self.vicat = VICAT(self.session,self.fid,False)
         self.assertIsNone(self.vicat.superseded(self.datasetId))
-    
+     
     def test05SupersededOK(self):
         self.vicat = VICAT(self.session,self.fid,False)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
         self.assertEqual(newdsid,self.vicat.superseded(self.datasetId))
-    
+     
     def test06SupersededNotOK(self):
         self.vicat = VICAT(self.session,self.fid,True)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
         with self.assertRaises(VicatException) as cm:
             dsid2 = self.vicat.superseded(self.datasetId)
         self.assertEqual(VicatException.BRANCHING_PERMITTED, cm.exception.getType())
-
+ 
     def test07SupersededNotOK(self):
         self.vicat = VICAT(self.session,self.fid,True)
         newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2.1")
@@ -128,7 +128,7 @@ class Test(unittest.TestCase):
         with self.assertRaises(VicatException) as cm:
             dsid2 = self.vicat.superseded(self.datasetId)
         self.assertEqual(VicatException.BRANCHING_PERMITTED, cm.exception.getType())
-    
+     
     def test08History(self):
         self.vicat = VICAT(self.session,self.fid,False)
         self.assertEqual([],self.vicat.ancestors(self.datasetId))
@@ -139,7 +139,7 @@ class Test(unittest.TestCase):
         self.assertEqual([newdsid1,newdsid2], self.vicat.descendants(self.datasetId))
         self.assertEqual([self.datasetId],self.vicat.ancestors(newdsid1))
         self.assertEqual([newdsid2], self.vicat.descendants(newdsid1))
-    
+     
     def test09SupersededTrail(self):
         self.vicat = VICAT(self.session,self.fid,False)
         newdsid1 = self.vicat.createVersion(self.datasetId,"ds1_v2")
@@ -147,13 +147,13 @@ class Test(unittest.TestCase):
         self.assertTrue(self.vicat.isSuperseded(self.datasetId))
         self.assertTrue(self.vicat.isSuperseded(newdsid1))
         self.assertFalse(self.vicat.isSuperseded(newdsid2))
-    
+     
     def test10NoVersionComment(self):
         self.vicat = VICAT(self.session,self.fid,False)
         self.assertIsNone(self.vicat.versionComment(self.datasetId))
         newdsid1 = self.vicat.createVersion(self.datasetId,"ds1_v2")
         self.assertIsNone(self.vicat.versionComment(newdsid1))
-
+ 
     def test11VersionComment(self):
         self.vicat = VICAT(self.session,self.fid,False)
         comment = "This version has a comment"
@@ -164,6 +164,79 @@ class Test(unittest.TestCase):
         newdsid2 = self.vicat.createVersion(newdsid1,"ds1_v3")
         self.assertIsNone(self.vicat.versionComment(newdsid2))
 
+    # @unittest.skip("Skipping AddFile test")
+    def test12AddFile(self):
+        self.vicat = VICAT(self.session)
+        newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2")
+        #=======================================================================
+        # version 1 : build the Datafile entity, setting "its" dataset id.
+        #=======================================================================
+        datafile = {"name" : "df3", "location" : "loc3", "dataset" : {"id" : newdsid}}
+        entity = {"Datafile" : datafile}
+        #=======================================================================
+        # version 2 : specify the dataset and add the datafile. Throws OBJECT_ALREADY_EXISTS
+        # (but this appears to be a red herring - real cause is to do with dataset parameters somehow)
+        # See the ParameterFail test.
+        #=======================================================================
+#         dataset = {}
+#         dataset["id"] = newdsid
+#         dataset["datafiles"] = [{"name" : "df3", "location" : "loc3"}]
+#         entity = {"Dataset" : dataset}
+#         #=======================================================================
+        self.session.write(entity)
+        oldfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(self.datasetId))
+        newfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(newdsid))
+        self.assertEqual(len(oldfiles)+1,len(newfiles))
+        
+    @unittest.skip("Skipping ParameterFail test")
+    def test13ParameterFail(self):
+        # Demonstrates a problem with adding DatasetParameters
+        # This is independent of versioning or even cloning.
+        
+        # Create a ParameterType
+        # (Simplified version of what happens in the VICAT constructor)
+        sdParamType = {"name" : "test:paramType",
+            "facility" : {"id" : self.fid},
+            "valueType" : "NUMERIC",
+            "description" : "indicates there are newer versions of this dataset; if branching is disabled, will contain the id of the superseding dataset",
+            "applicableToDataset" : True,
+            "units" : "N/A"}
+        entity = {"ParameterType" : sdParamType }
+        self.testParamType = self.session.write(entity)[0]
+
+        # Set description in original
+        dataset = {}
+        dataset["id"] = self.datasetId
+        dataset["description"] = "original description"
+        entity = {"Dataset" : dataset}
+        # The following line throws OBJECT_ALREADY_EXISTS (which is not the real error)
+        writeResult = self.session.write(entity)
+        self.assertEqual(0,len(writeResult))
+        
+        # Change description again - should still work
+        dataset = {}
+        dataset["id"] = self.datasetId
+        dataset["description"] = "original description modified before parameter added"
+        entity = {"Dataset" : dataset}
+        writeResult = self.session.write(entity)
+        self.assertEqual(0,len(writeResult))
+        
+        # Add a dataset parameter
+        # (Something similar happens in createVersion).
+        testParam = {"dataset" : {"id" : self.datasetId}, "type" : {"id" : self.testParamType}, "numericValue" : 0}
+        entity = {"DatasetParameter" : testParam}
+        writeResult = self.session.write(entity)
+        self.assertEqual(1,len(writeResult))
+        
+        # Update the description again - or try to
+        dataset = {}
+        dataset["id"] = self.datasetId
+        dataset["description"] = "original description modified after parameter added"
+        entity = {"Dataset" : dataset}
+        # The following line throws OBJECT_ALREADY_EXISTS (which is not the real error)
+        writeResult = self.session.write(entity)
+        self.assertEqual(0,len(writeResult))
+        
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testCreateVersion']
     unittest.main()
