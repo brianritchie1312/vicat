@@ -174,24 +174,16 @@ class Test(unittest.TestCase):
         datafile = {"name" : "df3", "location" : "loc3", "dataset" : {"id" : newdsid}}
         entity = {"Datafile" : datafile}
         #=======================================================================
-        # version 2 : specify the dataset and add the datafile. Throws OBJECT_ALREADY_EXISTS
-        # (but this appears to be a red herring - real cause is to do with dataset parameters somehow)
-        # See the ParameterFail test.
-        #=======================================================================
-#         dataset = {}
-#         dataset["id"] = newdsid
-#         dataset["datafiles"] = [{"name" : "df3", "location" : "loc3"}]
-#         entity = {"Dataset" : dataset}
-#         #=======================================================================
         self.session.write(entity)
         oldfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(self.datasetId))
         newfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(newdsid))
         self.assertEqual(len(oldfiles)+1,len(newfiles))
         
-    @unittest.skip("Skipping ParameterFail test")
+    # @unittest.skip("Skipping ParameterFail test")
     def test13ParameterFail(self):
-        # Demonstrates a problem with adding DatasetParameters
-        # This is independent of versioning or even cloning.
+        # Originally demonstrated a problem with adding DatasetParameters then attempting to update a Dataset.
+        # (Not a versioning/cloning issue, except inasmuch as versioning adds DatasetParameters.)
+        # Now fixed, as of icat.server-4.8.0-20161004.161020-18
         
         # Create a ParameterType
         # (Simplified version of what happens in the VICAT constructor)
@@ -209,7 +201,6 @@ class Test(unittest.TestCase):
         dataset["id"] = self.datasetId
         dataset["description"] = "original description"
         entity = {"Dataset" : dataset}
-        # The following line throws OBJECT_ALREADY_EXISTS (which is not the real error)
         writeResult = self.session.write(entity)
         self.assertEqual(0,len(writeResult))
         
@@ -233,9 +224,29 @@ class Test(unittest.TestCase):
         dataset["id"] = self.datasetId
         dataset["description"] = "original description modified after parameter added"
         entity = {"Dataset" : dataset}
-        # The following line throws OBJECT_ALREADY_EXISTS (which is not the real error)
+        # The following line throws OBJECT_ALREADY_EXISTS (which is not the real error) 
+        # now fixed in ICAT as of snapshot icat.server-4.8.0-20161004.161020-18
         writeResult = self.session.write(entity)
         self.assertEqual(0,len(writeResult))
+        
+    # @unittest.skip("Skipping AddFile test")
+    def test14AddFilev2(self):
+        self.vicat = VICAT(self.session)
+        newdsid = self.vicat.createVersion(self.datasetId,"ds1_v2")
+        #=======================================================================
+        # version 2 : specify the dataset and add the datafile. 
+        #=======================================================================
+        dataset = {}
+        dataset["id"] = newdsid
+        # Do not need to add the dataset id to the datafile as well (though it should work).
+        # dataset["datafiles"] = [{"name" : "df3", "location" : "loc3", "dataset" : {"id" : newdsid}}]
+        dataset["datafiles"] = [{"name" : "df3", "location" : "loc3"}]
+        entity = {"Dataset" : dataset}
+        #=======================================================================
+        self.session.write(entity)
+        oldfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(self.datasetId))
+        newfiles = self.session.search("SELECT df.id, df.name, df.location FROM Datafile df WHERE df.dataset.id = " + str(newdsid))
+        self.assertEqual(len(oldfiles)+1,len(newfiles))
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testCreateVersion']
