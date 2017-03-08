@@ -21,7 +21,7 @@ and each dataset will have a unique latest version.
 When branching is allowed, vicat allows users
 to create multiple direct versions from the same dataset, so permitting a tree of descendants. In this case,
 it is not guaranteed that each dataset will have a unique latest version. For reasons of simplicity, the
-`descendants` method is not allowed.
+`descendants` method is not allowed when branching is allowed (or has been used).
 
 The decision of whether to permit or forbid branching is determined in the vicat constructor. However, it is
 *not* recorded in ICAT itself (though it *may* be possible to determine whether or not branching has been
@@ -43,6 +43,8 @@ Once a new version has been created, it is not possible to delete it.
 The setup method for the unit tests is designed to clean out the ICAT instance specified in the OS environment variable
 `serverUrl`, so this should **not** be pointed to an ICAT instance that contains anything of value. (That said, the test
 suite also assumes specific authentication credentials that are "unlikely" to be valid.)
+
+There is no tear-down method; the main reason for this is that it may be useful to inspect the contents of ICAT after a test run.
 
 ## Constructor
 
